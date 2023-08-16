@@ -11,7 +11,7 @@ setup(
     url="https://github.com/seanbreckenridge/time-in",
     author="Sean Breckenridge",
     author_email="seanbrecke@gmail.com",
-    description=("""cli tool to figure out the time somewhere else"""),
+    description=("""CLI tool to figure out the time somewhere else"""),
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="MIT",
@@ -21,11 +21,7 @@ setup(
     zip_safe=False,
     keywords="",
     python_requires=">=3.8",
-    entry_points={
-        "console_scripts": [
-            "time-in = time_in.__main__:main"
-        ]
-    },
+    entry_points={"console_scripts": ["time-in = time_in.__main__:main"]},
     extras_require={
         "testing": [
             "mypy",

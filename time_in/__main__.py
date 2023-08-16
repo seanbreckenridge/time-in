@@ -1,5 +1,6 @@
-from typing import List, Any, Iterator, Union, Sequence, Literal
+from typing import List, Any, Iterator, Union, Sequence, Literal, NamedTuple, Optional
 
+import os
 import zoneinfo
 from datetime import datetime, timedelta
 
@@ -9,7 +10,7 @@ from tabulate import tabulate
 from .countryinfo import iter_countries, _get_tz_from_fzf_line
 
 
-@click.group()
+@click.group(context_settings={"max_content_width": 120})
 def main() -> None:
     pass
 
@@ -51,7 +52,7 @@ def _make_unaware(dt: datetime) -> datetime:
 
 
 def _sign(f: Union[float, int]) -> str:
-    return "+" if f >= 0 else "-"
+    return "+" if f >= 0 else ""
 
 
 def _display_timezone_diff(fi: float) -> str:
@@ -62,6 +63,7 @@ def _display_timezone_diff(fi: float) -> str:
     else:
         s = f"{f:.1f}" if f * 10 % 1 == 0 else f"{f:.2f}"
     return f"{_sign(f)}{s}"
+
 
 def _round_to(dt: datetime, strategy: Literal["up", "down", "nearest"]) -> datetime:
     if strategy == "up":
@@ -76,6 +78,46 @@ def _round_to(dt: datetime, strategy: Literal["up", "down", "nearest"]) -> datet
     else:
         raise ValueError(f"invalid rounding strategy: {strategy}")
 
+
+def _local_tz() -> zoneinfo.ZoneInfo:
+    import tzlocal
+
+    tz = tzlocal.get_localzone_name()
+    return _parse_timezone(tz)
+
+
+class TZWithName(NamedTuple):
+    tz: zoneinfo.ZoneInfo
+    name: Optional[str]
+
+    @classmethod
+    def from_str(cls, s: str) -> "TZWithName":
+        if ":" in s:
+            name, tz = s.split(":", 1)
+            return cls(_parse_timezone(tz.strip()), name.strip())
+        else:
+            return cls(_parse_timezone(s), None)
+
+
+def _parse_dates(context: click.Context, param: Any, value: str) -> datetime:
+    if value == "now":
+        return datetime.now()
+    else:
+        import warnings
+        import dateparser
+
+        warnings.filterwarnings("ignore", "The localize method is no longer necessary")
+
+        dt = dateparser.parse(value, settings={"PREFER_DATES_FROM": "future"})
+        if dt is None:
+            raise click.BadParameter(f"failed to parse date: {value}")
+        if dt.tzinfo is None:
+            # if the timezone is not specified, assume it's local
+            dt = dt.astimezone()
+        # then, convert to naive datetime
+        return datetime.fromtimestamp(dt.timestamp())
+
+
 @main.command(short_help="time in timezone")
 @click.option(
     "-f",
@@ -89,7 +131,7 @@ def _round_to(dt: datetime, strategy: Literal["up", "down", "nearest"]) -> datet
     "-h",
     "--hours",
     "hours_",
-    default=0,
+    default=None,
     type=int,
     help="print this many localized hours in timezones",
     show_default=True,
@@ -101,11 +143,28 @@ def _round_to(dt: datetime, strategy: Literal["up", "down", "nearest"]) -> datet
     help="print the local time as well",
 )
 @click.option(
+    "-d",
+    "--date",
+    "date_",
+    type=click.UNPROCESSED,
+    default="now",
+    help="date to print",
+    show_default=True,
+    callback=_parse_dates,
+)
+@click.option(
+    "-P",
+    "--print-local-timezone",
+    "print_local_timezone",
+    is_flag=True,
+    help="print the local timezone name as well",
+)
+@click.option(
     "-r",
     "--round",
     "round_",
     type=click.Choice(["up", "down", "nearest"]),
-    default="down",
+    default=None,
     help="round the time to the nearest hour",
     show_default=True,
 )
@@ -119,32 +178,47 @@ def _round_to(dt: datetime, strategy: Literal["up", "down", "nearest"]) -> datet
 def tz(
     format_: str,
     hours_: int,
+    date_: datetime,
     print_local: bool,
+    print_local_timezone: bool,
     print_tz: bool,
-    round_: Literal["up", "down", "nearest"],
+    round_: Optional[Literal["up", "down", "nearest"]],
     tz: Sequence[str],
 ) -> None:
-    # get local timezone
-    naive = datetime.now()
-    if round_:
-        naive = _round_to(naive, round_)
+    if hours_ and hours_ < 1:
+        raise click.BadParameter("hours must be >= 1")
 
-    aware = naive.astimezone()
+    # get local timezone
+    if round_:
+        date_ = _round_to(date_, round_)
+
+    aware = date_.astimezone()
     local_tz = aware.tzinfo
     assert local_tz is not None, "failed to get local timezone"
 
     # get list of all timezones
-    picked: List[zoneinfo.ZoneInfo] = (
-        [_parse_timezone(_tz) for _tz in tz] if tz else [_pick_timezone()]
+    picked: List[TZWithName] = (
+        [TZWithName.from_str(_tz) for _tz in tz]
+        if tz
+        else [TZWithName(_pick_timezone(), None)]
     )
-    if not picked:
-        click.echo("No timezone selected", err=True)
-        return
+
+    assert len(picked) > 0, "no timezones selected"
 
     dates = [
         *([aware] if print_local else []),
-        *(naive.astimezone(p) for p in picked),
+        *(date_.astimezone(p.tz) for p in picked),
     ]
+
+    tznames: List[str] = []
+    if print_local:
+        if print_local_timezone:
+            tznames.append(str(_local_tz()))
+        else:
+            tznames.append(os.environ.get("TIME-IN-LOCAL-STR", "Here"))
+    tznames.extend(p.name or str(p.tz) for p in picked)
+
+    assert len(dates) == len(tznames), "mismatched dates and timezones"
 
     # get the first datetime (may be yours, else it is used as the 'first' timezone)
     first = dates[0]
@@ -158,12 +232,12 @@ def tz(
         # get the date in the first timezone
         rows: List[List[Any]] = []
         # get the hours in the first timezone
-        for dt, df in zip(dates, diffs):
+        for dt, df, tzn in zip(dates, diffs, tznames):
             row: List[Any] = []
             if print_tz:
-                row.append(dt.tzinfo)
+                row.append(tzn)
                 row.append(f"({_display_timezone_diff(df)})")
-                row.append(first.strftime("[%b %d]"))
+                row.append(dt.strftime("[%b %d]"))
             for hr in range(hours_):
                 shifted_dt = dt + timedelta(hours=hr)
                 if shifted_dt.minute == 0:
@@ -177,9 +251,11 @@ def tz(
     else:
         rows = []
 
-        for d, df in zip(dates, diffs):
+        for d, df, tzn in zip(dates, diffs, tznames):
             if print_tz:
-                rows.append([d.tzinfo, df, d.strftime(format_)])
+                rows.append(
+                    [tzn, f"({_display_timezone_diff(df)})", d.strftime(format_)]
+                )
             else:
                 rows.append([d.strftime(format_)])
 
