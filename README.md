@@ -20,6 +20,8 @@ time-in tz --help
 
 If no timezone is passed, this uses [fzf](https://github.com/junegunn/fzf) to let you select a timezone from a list of all timezones/common countries/capitals.
 
+![fzf example](https://github.com/seanbreckenridge/time-in/blob/main/.github/fzf.png?raw=true)
+
 ```
 Usage: time-in tz [OPTIONS] [TZ]...
 
