@@ -4,12 +4,12 @@ CLI tool to figure out the time somewhere else
 
 ## Installation
 
-Requires `python3.8+`
+Requires `python3.9+`
 
 To install with pip, run:
 
 ```
-pip install git+https://github.com/seanbreckenridge/time-in
+pip install time-in
 ```
 
 ## Usage

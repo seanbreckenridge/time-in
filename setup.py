@@ -20,7 +20,7 @@ setup(
     package_data={pkg: ["py.typed"]},
     zip_safe=False,
     keywords="",
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     entry_points={"console_scripts": ["time-in = time_in.__main__:main"]},
     extras_require={
         "testing": [
