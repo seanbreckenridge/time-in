@@ -27,12 +27,13 @@ Usage: time-in tz [OPTIONS] [TZ]...
 
 Options:
   -f, --format TEXT              format for printing dates  [default: %Y-%m-%d %H:%M:%S %Z]
-  -h, --hours INTEGER            print this many localized hours in timezones  [default: 0]
+  -h, --hours INTEGER            print this many localized hours in timezones
   --print-local / --skip-local   print the local time as well
   -d, --date TEXT                date to print  [default: now]
   -P, --print-local-timezone     print the local timezone name as well
-  -r, --round [up|down|nearest]  round the time to the nearest hour  [default: down]
+  -r, --round [up|down|nearest]  round the time to the nearest hour
   --print-info / --hide-info     print timezone info/difference
+  -S, --sort-diffs               sort timezones by difference from the first timezone
   --help                         Show this message and exit.
 ```
 

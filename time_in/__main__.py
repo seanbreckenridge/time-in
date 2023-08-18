@@ -118,6 +118,12 @@ def _parse_dates(context: click.Context, param: Any, value: str) -> datetime:
         return datetime.fromtimestamp(dt.timestamp())
 
 
+class TZInfo(NamedTuple):
+    dt: datetime
+    tzname: str
+    tzdiff: float
+
+
 @main.command(short_help="time in timezone")
 @click.option(
     "-f",
@@ -174,6 +180,13 @@ def _parse_dates(context: click.Context, param: Any, value: str) -> datetime:
     default=True,
     help="print timezone info/difference",
 )
+@click.option(
+    "-S",
+    "--sort-diffs",
+    "sort_diffs",
+    is_flag=True,
+    help="sort timezones by difference from the first timezone",
+)
 @click.argument("TZ", required=False, type=str, nargs=-1)
 def tz(
     format_: str,
@@ -182,6 +195,7 @@ def tz(
     print_local: bool,
     print_local_timezone: bool,
     print_tz: bool,
+    sort_diffs: bool,
     round_: Optional[Literal["up", "down", "nearest"]],
     tz: Sequence[str],
 ) -> None:
@@ -205,10 +219,11 @@ def tz(
 
     assert len(picked) > 0, "no timezones selected"
 
-    dates = [
+    dates: List[datetime] = [
         *([aware] if print_local else []),
         *(date_.astimezone(p.tz) for p in picked),
     ]
+    assert len(dates) > 0, "no dates to print"
 
     tznames: List[str] = []
     if print_local:
@@ -217,29 +232,31 @@ def tz(
         else:
             tznames.append(os.environ.get("TIME-IN-LOCAL-STR", "Here"))
     tznames.extend(p.name or str(p.tz) for p in picked)
-
     assert len(dates) == len(tznames), "mismatched dates and timezones"
 
-    # get the first datetime (may be yours, else it is used as the 'first' timezone)
-    first = dates[0]
-    # get the difference in hours between the two timezones
-    diffs = [
-        (_make_unaware(dt) - _make_unaware(first)).total_seconds() / 3600
+    # get the difference in hours between the first timezone (probably yours) and the others
+    diffs: List[float] = [
+        (_make_unaware(dt) - _make_unaware(dates[0])).total_seconds() / 3600
         for dt in dates
     ]
 
+    tzinfos: List[TZInfo] = [
+        TZInfo(dt, tzname, tzdiff) for dt, tzname, tzdiff in zip(dates, tznames, diffs)
+    ]
+
+    if sort_diffs:
+        tzinfos.sort(key=lambda tzinfo: tzinfo.tzdiff)
+
     if hours_:
-        # get the date in the first timezone
         rows: List[List[Any]] = []
-        # get the hours in the first timezone
-        for dt, df, tzn in zip(dates, diffs, tznames):
+        for tzinfo in tzinfos:
             row: List[Any] = []
             if print_tz:
-                row.append(tzn)
-                row.append(f"({_display_timezone_diff(df)})")
-                row.append(dt.strftime("[%b %d]"))
+                row.append(tzinfo.tzname)
+                row.append(f"({_display_timezone_diff(tzinfo.tzdiff)})")
+                row.append(tzinfo.dt.strftime("[%b %d]"))
             for hr in range(hours_):
-                shifted_dt = dt + timedelta(hours=hr)
+                shifted_dt = tzinfo.dt + timedelta(hours=hr)
                 if shifted_dt.minute == 0:
                     row.append(shifted_dt.strftime("%H"))
                 else:
@@ -251,13 +268,17 @@ def tz(
     else:
         rows = []
 
-        for d, df, tzn in zip(dates, diffs, tznames):
+        for tzinfo in tzinfos:
             if print_tz:
                 rows.append(
-                    [tzn, f"({_display_timezone_diff(df)})", d.strftime(format_)]
+                    [
+                        tzinfo.tzname,
+                        f"({_display_timezone_diff(tzinfo.tzdiff)})",
+                        tzinfo.dt.strftime(format_),
+                    ]
                 )
             else:
-                rows.append([d.strftime(format_)])
+                rows.append([tzinfo.dt.strftime(format_)])
 
         click.echo(tabulate(rows, headers=(), tablefmt="plain", disable_numparse=True))
 
