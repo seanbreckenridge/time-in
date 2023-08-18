@@ -90,6 +90,38 @@ Asia/Tokyo           (+16)    [Aug 17]  02     03     04     05     06     07
 US/Hawaii            (-3)     [Aug 16]  07     08     09     10     11     12
 ```
 
+## Example Usage
+
+I create a wrapper `tz` script that just passes the arguments to `time-in tz`:
+
+```bash
+#!/bin/sh
+exec time-in tz "$@"
+```
+
+And then have a `tz-friends` functions in my shell for my friends in different timezones:
+
+```
+tz-friends () {
+	tz "$@" 'East Coast: America/New_York' 'Japan: Asia/Tokyo' 'UK: Europe/London' 'India: Asia/Calcutta'
+}
+```
+
+```bash
+$ tz-friends
+Here        (+0)     2023-08-17 21:12:57 PDT
+East Coast  (+3)     2023-08-18 00:12:57 EDT
+Japan       (+16)    2023-08-18 13:12:57 JST
+UK          (+8)     2023-08-18 05:12:57 BST
+India       (+12.5)  2023-08-18 09:42:57 IST
+$ tz-friends -h 6 -r down
+Here        (+0)     [Aug 17]  21     22     23     00     01     02
+East Coast  (+3)     [Aug 18]  00     01     02     03     04     05
+Japan       (+16)    [Aug 18]  13     14     15     16     17     18
+UK          (+8)     [Aug 18]  05     06     07     08     09     10
+India       (+12.5)  [Aug 18]  09:30  10:30  11:30  12:30  13:30  14:30
+```
+
 ### Tests
 
 ```bash
