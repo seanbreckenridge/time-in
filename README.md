@@ -12,6 +12,8 @@ To install with pip, run:
 pip install time-in
 ```
 
+To use the interactive mode, you must have [`fzf`](https://github.com/junegunn/fzf) installed.
+
 ## Usage
 
 ```
