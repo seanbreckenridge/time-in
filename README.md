@@ -72,7 +72,7 @@ East Coast  (+3)  2023-08-16 13:52:04 EDT
 UK          (+8)  2023-08-16 18:52:04 BST
 ```
 
-This can also show a range of dates, if you pass `--hours`:
+This can also show the next few hours, which is useful for coordinating with others, if you pass `--hours`:
 
 ```bash
 $ time-in tz 'East Coast: US/Eastern' 'UK: Europe/London' --hours 12 --round down
@@ -103,7 +103,7 @@ exec time-in tz "$@"
 
 And then have a `tz-friends` functions in my shell for my friends in different timezones:
 
-```
+```bash
 tz-friends () {
 	tz "$@" 'East Coast: America/New_York' 'Japan: Asia/Tokyo' 'UK: Europe/London' 'India: Asia/Calcutta'
 }
